@@ -1,0 +1,38 @@
+---
+title: "My first markdown"
+author: "Yaqi"
+date: "April 8, 2016"
+output: html_document
+---
+
+This is my first markdown document. 
+
+Load some data
+```{r}
+library(datasets)
+data(airquality)
+summary(airquality)
+```
+
+See the cor
+```{r}
+pairs(airquality)
+```
+
+fit a model
+```{r}
+fit <- lm(Ozone~Solar.R+Wind + Temp, data = airquality)
+summary(fit)
+```
+
+Here is an unordered list
+
+*Here is Item one
+
+*Here is item two
+
+Ordered list
+
+1. frist item
+
+2. Second item
