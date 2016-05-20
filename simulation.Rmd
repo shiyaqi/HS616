@@ -1,0 +1,244 @@
+---
+title: "Data Simulation"
+author: "Yaqi"
+date: "May 16, 2016"
+output: html_document
+---
+
+Title: Glycated Albumin and Hemoglobin in Controlling Complications of Infants of Diabetic Mothers During Pregnancy 
+
+###References: 
+
+1) Complications in Infants of Diabetic Mothers Related to Glycated Albumin and Hemoglobin Levels During Pregnancy. content source:
+http://www.ncbi.nlm.nih.gov/pubmed/27131880
+
+2) Analysis of the method for conversion between levels of HbA1c and glycated albumin by linear regression analysis using a measurement error model.
+content source: http://www.ncbi.nlm.nih.gov/pubmed/19380169
+
+###Introduction: 
+Infants of diabetic mothers (IDMs) often have complications associated with maternal hyperglycemia. Glycated Albumin(GA) and Hemoglobin(HbA1c) are usully used as markers in diabetic patients. However, the HbA1c level is affected by an abnormal erythrocyte life span, which may occur in iron deficiency anemia. Pregnant women with diabetes mellitus or gestational diabetes mellitus (GDM) often develop iron deficiency anemia; therefore, HbA1c may be insufficient for assessing glycemic control in these women. 
+
+In this project, I simulated a dateset from the paper "Complications in Infants of Diabetic Mothers Related to Glycated Albumin and Hemoglobin Levels During Pregnancy"[1] which suggests to use GA as a marker to control diabeties during pregnancy in order to lower the incidence of compliations ammoun IDMs. In the end, I build a logistic model to predice the probabiliy of having complications given a GA value. 
+
+###Part1 Data Simulation
+####1.Data set to simulate:
+*Observations:
+In the research article, Daisuke Sugawara observed 42 infants of diabetics mothers(IDMs) 25 of which have at least 1 complication after birth. 17 of the  IDMs has no complications. In order to reduce the bias of simulating a small dataset(less than 50), I decided to simulate a data set that contains 420 observations. 
+
+*Attributes
+There are 10 attributes for each observation in this dataset:
+![Attributes for each observation](/Users/Anna/Documents/HS616/Projects/Datasimulation/Attributes.png)
+
+####2.Creation of the data set and associated code:
+* In the research paper, means and stander deviations(sd) of GA and HbA1C for patients with/without complications are given. However, the mean and sd of GA and HbA1C for all patients are not specified in the paper. So I first created vector 'temp' to hold to classes (Complications, NoComplications). Then use temp to help stimulating the distribution of GA for all patients. 
+* "Hb temp" is created to help to simulate a temporary Hb vectors for both patients with/without complications. This temporary Hb vector later is used to calculate the mean and sd for all the patients. However, a further research on correlations between HbA1C and GA indicates these 2 variables are strongly correlated (0.747)[2], a linear model using GA to predict HbA1C is HbA(1c)=1.73+0.245GA [2]. I used this model along with the mean and sd calculated from Hb_temp to simulate HbA1C for each patient.
+* "Hypo_glc, Resp_dis,  Hypo_cal, Hype_vol, Hype_bil, Hype_myocar, Large_for_date" are 7 common complications for IDMs. The paper[1] discovered that GA and HbA1C for mothers of IDMs who have Hype_vol, Hype_bil are not significantly different with those without these 2 conditions. 
+* "Hypo_glc, Resp_dis,  Hypo_cal, Hype_myocar, Large_for_date" are simulated using logistic function with the probability specified(refer to attributes).
+* "Hype_vol, Hype_bil" are simulated randomly with the probability specified(refer to attributes).
+
+```{r}
+########################################## Part1 Data Simulation ##############################################
+set.seed(123)
+logistic <- function(t) 1 / (1 + exp(-t))
+
+generate_dataset <- function(N){
+  temp <- sample(c("Complication", "NoComplication"), N, replace=TRUE, prob=c(0.595, 0.415))
+  GA_mean <- c(Complication= 15.3, NoComplication = 13.3)
+  GA_sd <- c(Complication = 1.6, NoComplication = 1.1)
+  GA <- rnorm(N, mean = GA_mean[temp], sd = GA_sd[temp])
+  
+  Hb_temp_mean <- c(Complication = 5.9, NoComplication = 5.6)
+  Hb_temp_sd <- c(Complication = 0.3, NoComplication = 0.4)
+  Hb_temp <- rnorm(N, mean = Hb_temp_mean[temp], sd = Hb_temp_sd[temp])
+  HbA1C <- 0.245 * (GA-mean(GA)) + mean(Hb_temp) + rnorm(N, sd = sd(Hb_temp))
+  
+  Hypo_glc <- runif(N) < (13/42)*2*logistic(GA-mean(GA))
+  Resp_dis <- runif(N) < (11/42)*2*logistic(GA-mean(GA))
+  Hypo_cal <- runif(N) < (9/42)*2*logistic(GA-mean(GA))
+  Hype_vol <- sample(c(TRUE, FALSE), N,replace=TRUE, prob=c(4/42, 1-4/42))
+  Hype_bil <- sample(c(TRUE, FALSE), N,replace=TRUE, prob=c(6/42, 1-6/42))
+  Hype_myocar <- runif(N) < (17/42)*2*logistic(GA-mean(GA))
+  Large_for_date <- runif(N) < (8/42)*2*logistic(GA-mean(GA))
+  df <- data.frame(Hypo_glc,Resp_dis,Hypo_cal,Hype_vol,Hype_bil,Hype_myocar,Large_for_date)
+  df$complication <- ifelse(apply(df[,c(1:7)],1,sum) != 0, TRUE, FALSE)
+  df$GA <- GA
+  df$HbA1C <- HbA1C
+  return(df)
+}
+N <- 420
+mydata <- generate_dataset(N)
+```
+
+###Part2 Data Exploration
+####1.Distributions of GA and HbA1C for each complication
+```{r}
+########################################## Part2 Data Exploration ##############################################
+library(ggplot2)
+
+# Multiple plot function
+
+# ggplot objects can be passed in ..., or to plotlist (as a list of ggplot objects)
+# - cols:   Number of columns in layout
+# - layout: A matrix specifying the layout. If present, 'cols' is ignored.
+# If the layout is something like matrix(c(1,2,3,3), nrow=2, byrow=TRUE),
+# then plot 1 will go in the upper left, 2 will go in the upper right, and
+# 3 will go all the way across the bottom.
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  numPlots = length(plots)
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  if (numPlots==1) {
+    print(plots[[1]])
+    } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+
+Hb1 <- ggplot(data = mydata) + geom_histogram(aes(x = HbA1C, fill = Hypo_glc), binwidth = 0.05, alpha = 0.5, position = "identity" )+ggtitle('HbA1C~Hypo_glc') 
+Hb2 <- ggplot(data = mydata) + geom_histogram(aes(x = HbA1C, fill = Resp_dis), binwidth = 0.05, alpha = 0.5, position = "identity")+ggtitle('HbA1C~Resp_dis')
+Hb3 <- ggplot(data = mydata) + geom_histogram(aes(x = HbA1C, fill = Hypo_cal), binwidth = 0.05, alpha = 0.5, position = "identity")+ggtitle('HbA1C~Hypo_cal')
+Hb4 <- ggplot(data = mydata) + geom_histogram(aes(x = HbA1C, fill = Hype_vol), binwidth = 0.05, alpha = 0.5, position = "identity")+ggtitle('HbA1C~Hype_vol')
+Hb5 <- ggplot(data = mydata) + geom_histogram(aes(x = HbA1C, fill = Hype_bil), binwidth = 0.05, alpha = 0.5, position = "identity")+ggtitle('HbA1C~Hype_bil')
+Hb6 <- ggplot(data = mydata) + geom_histogram(aes(x = HbA1C, fill = Hype_myocar), binwidth = 0.05, alpha = 0.5, position = "identity")+ggtitle('HbA1C~Hype_myocar')
+Hb7 <- ggplot(data = mydata) + geom_histogram(aes(x = HbA1C, fill = Large_for_date), binwidth = 0.05, alpha = 0.5, position = "identity")+ggtitle('HbA1C~Large_for_date')
+Hb8 <- ggplot(data = mydata) + geom_histogram(aes(x = HbA1C, fill = complication), binwidth = 0.05, alpha = 0.5, position = "identity")+ggtitle('HbA1C~complication')
+multiplot(Hb1,Hb2,Hb3,Hb4,Hb5,Hb6,Hb7,Hb8, cols = 2)
+
+GA1 <- ggplot(data = mydata) + geom_histogram(aes(x = GA, fill = Hypo_glc), binwidth = 0.3, alpha = 0.5, position = "identity" )+ggtitle('GA~Hypo_glc')
+GA2 <- ggplot(data = mydata) + geom_histogram(aes(x = GA, fill = Resp_dis), binwidth = 0.3, alpha = 0.5, position = "identity")+ggtitle('GA~Resp_dis')
+GA3 <- ggplot(data = mydata) + geom_histogram(aes(x = GA, fill = Hypo_cal), binwidth = 0.3, alpha = 0.5, position = "identity")+ggtitle('GA~Hypo_cal')
+GA4 <- ggplot(data = mydata) + geom_histogram(aes(x = GA, fill = Hype_vol), binwidth = 0.3, alpha = 0.5, position = "identity")+ggtitle('GA~Hype_vol')
+GA5 <- ggplot(data = mydata) + geom_histogram(aes(x = GA, fill = Hype_bil), binwidth = 0.3, alpha = 0.5, position = "identity")+ggtitle('GA~Hype_bil')
+GA6 <- ggplot(data = mydata) + geom_histogram(aes(x = GA, fill = Hype_myocar), binwidth = 0.3, alpha = 0.5, position = "identity")+ggtitle('GA~Hype_myocar')
+GA7 <- ggplot(data = mydata) + geom_histogram(aes(x = GA, fill = Large_for_date), binwidth = 0.3, alpha = 0.5, position = "identity")+ggtitle('GA~Large_for_date')
+GA8 <- ggplot(data = mydata) + geom_histogram(aes(x = GA, fill = complication), binwidth = 0.3, alpha = 0.5, position = "identity")+ggtitle('GA~complication')
+multiplot(GA1,GA2,GA3,GA4,GA5,GA6,GA7,GA8, cols = 2)
+```
+
+
+* Each plot delivers the stories of the distributions of GA/HbA1C between patients with/without a particular complication.
+* There are no significant differences of mean and sd of GA/HbA1C for infants with/without Hype_bil and Hype_vol. 
+
+####2.2-sample T test between case and control for each complication
+```{r}
+T_test <- function(data){
+  for (col in names(data)[c(1:8)]){
+    print(sprintf("======================================%s======================================",col))
+    print(sprintf("======================================GA~%s",col))
+    print (t.test(data$GA~data[[col]]))
+    print(sprintf("===================================HbA1C~%s",col))
+    print (t.test(data$HbA1C~data[[col]]))
+  }
+}
+
+T_test(mydata)
+```
+
+* The results of 2 sample t-test justified what we saw from the plots above that Hype_vol and Hype_bil are not significantly different between control and case groups.
+
+####3.The linear relation between GA and HbA1C
+```{r}
+cor(mydata[,c(9,10)])
+```
+
+* GA and HbA1C are positively correlated, with a correlation of 0.758 very close to 0.747[2]
+
+```{r}
+fit_Hb <- lm(HbA1C~GA,data = mydata)
+pred_HB <- predict(fit_Hb)
+summary(fit_Hb)   
+```
+
+* Hb = 0.235*GA + 2.38  vary close to the linear model HbA(1c)=1.73+0.245GA [2]
+* R^2 = 0.5742, P-value < 2.2e-16
+
+```{r}
+plot(fit_Hb,1)
+```
+
+* The residuals are randomly distributed
+
+```{r}
+ggplot(data=mydata)+geom_point(aes(x=GA,y=HbA1C,color = complication))+ geom_smooth(aes(x=GA,y=HbA1C))+geom_point(aes(x=GA,y=pred_HB))
+```
+
+* this plot indicates the model is significant, although R^2 is 0.5742, this may due to the data is pretty spread out
+
+###Part3 Data modeling
+####1.Let's plot complications vs GA again
+```{r}
+mydata1 <- data.frame(apply(mydata,2,as.numeric))   # change the T/F to 1/0
+plot(complication~GA, data = mydata1)
+```
+
+* The plot indicates babies with complications their moms have higher GA.
+* Babies without complications their moms have lower GA.
+
+####2.Let's fit a logistic regression model
+```{r}
+logisticPseudoR2s <- function(LogModel) {
+  dev <- LogModel$deviance 
+  nullDev <- LogModel$null.deviance 
+  modelN <-  length(LogModel$fitted.values)
+  R.l <-  1 -  dev / nullDev
+  R.cs <- 1- exp ( -(nullDev - dev) / modelN)
+  R.n <- R.cs / ( 1 - ( exp (-(nullDev / modelN))))
+  cat("Pseudo R^2 for logistic regression\n")
+  cat("Hosmer and Lemeshow R^2  ", round(R.l, 3), "\n")
+  cat("Cox and Snell R^2        ", round(R.cs, 3), "\n")
+  cat("Nagelkerke R^2           ", round(R.n, 3),    "\n")
+}
+fit_Com <- glm(complication~GA,family=binomial, data = mydata1)
+pred_com <- predict(fit_Com,type="response")
+summary(fit_Com)
+logisticPseudoR2s(fit_Com)
+```
+
+* Log(Have_Complications/no_Complications) = 0.944*GA - 12.069
+* pseudoR^2: 
+1. Hosmer and Lemeshow R^2   0.254 
+
+2. Cox and Snell R^2         0.247 
+
+3. Nagelkerke R^2            0.367 
+
+* AIC: 354.86
+
+####3. Let's plot out the model we just built
+```{r}
+ggplot(data=mydata1)+geom_point(aes(x=GA,y=complication,color = complication))+
+  geom_point(aes(x=GA,y= pred_com))
+
+library(scatterplot3d)
+s3d <-scatterplot3d( mydata$GA[mydata$complicatio==1],mydata$HbA1C[mydata$complicatio==1],mydata$complication[mydata$complicatio==1],
+                    color = "blue",
+                    xlab= "GA",ylab=  "HbA1C",zlab="complication", 
+                    main="GA VS HbA1C VS complication")
+s3d$points3d(mydata$GA[mydata$complicatio==0],mydata$HbA1C[mydata$complicatio==0],mydata$complication[mydata$complicatio==0], col = "red")
+```
+
+###Conlusion
+* Patients having higher GA their babies will have a higher chance to have complications after birth. 
+* The model to predic the probablity of have conditions is Log(p/(1-p)) = 0.944*GA - 12.069.  
+* HbA1C is correlated with GA, the linear relation can be described as HbA1C = 0.235*GA + 2.38
+* HbA1C can be affected by diabeties condition during pragnency. GA can be used to control diabeties in order to lower the incidence of complications in IDMs.
