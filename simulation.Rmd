@@ -27,7 +27,7 @@ In the research article, Daisuke Sugawara observed 42 infants of diabetics mothe
 
 *Attributes
 There are 10 attributes for each observation in this dataset:
-![Attributes for each observation](/Users/Anna/Documents/HS616/Projects/Datasimulation/Attributes.png)
+![Attributes for each observation](/Attributes.png)
 
 ####2.Creation of the data set and associated code:
 * In the research paper, means and stander deviations(sd) of GA and HbA1C for patients with/without complications are given. However, the mean and sd of GA and HbA1C for all patients are not specified in the paper. So I first created vector 'temp' to hold to classes (Complications, NoComplications). Then use temp to help stimulating the distribution of GA for all patients. 
